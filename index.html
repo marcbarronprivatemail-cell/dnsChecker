@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS Checker - Educational Platform Detection Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            padding: 50px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 36px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 16px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .description {
+            color: #777;
+            margin-bottom: 40px;
+            font-size: 14px;
+            line-height: 1.8;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .platforms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .platform-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 8px;
+            padding: 25px;
+            text-decoration: none;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 150px;
+        }
+        .platform-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+        .platform-card.microsoft-365 {
+            background: linear-gradient(135deg, #0078d4 0%, #107c10 100%);
+        }
+        .platform-card.owa {
+            background: linear-gradient(135deg, #4a86e8 0%, #4a86e8 100%);
+        }
+        .platform-card.mimecast {
+            background: linear-gradient(135deg, #1b4587 0%, #2d5aa0 100%);
+        }
+        .platform-card.rackspace {
+            background: linear-gradient(135deg, #ce3262 0%, #c41e3a 100%);
+        }
+        .platform-card.smartermail {
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+        }
+        .platform-card.zimbra {
+            background: linear-gradient(135deg, #00a699 0%, #00c9b7 100%);
+        }
+        .platform-card.roundcube {
+            background: linear-gradient(135deg, #6c7eb5 0%, #8fa3c9 100%);
+        }
+        .platform-card.cpanel {
+            background: linear-gradient(135deg, #1e4d8b 0%, #2c5aa0 100%);
+        }
+        .platform-card.horde {
+            background: linear-gradient(135deg, #8b4513 0%, #a0522d 100%);
+        }
+        .platform-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .platform-name {
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .info-box {
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+            text-align: left;
+        }
+        .info-box h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .info-box p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔍</div>
+        <h1>DNS Checker</h1>
+        <p class="subtitle">Educational Platform Detection Demonstration</p>
+        
+        <p class="description">
+            This demonstration showcases how the DNS Checker API detects and identifies different email platforms
+            through advanced fingerprinting techniques. Click on any platform below to see an example of how it would
+            appear after successful detection.
+        </p>
+        
+        <div class="info-box">
+            <h3>📚 About This Demo</h3>
+            <p>
+                The DNS Checker API uses multiple detection methods including DNS record analysis (MX patterns, SPF, DMARC),
+                HTTP header analysis, path detection, cookie fingerprinting, HTML content analysis, and TLS certificate inspection.
+                Each platform has unique fingerprints that allow accurate identification.
+            </p>
+        </div>
+        
+        <h2 style="color: #333; margin-bottom: 30px; font-size: 20px;">Supported Email Platforms</h2>
+        
+        <div class="platforms-grid">
+            <a href="pages/microsoft_365.html" class="platform-card microsoft-365">
+                <div class="platform-icon">☁️</div>
+                <div class="platform-name">Microsoft 365</div>
+            </a>
+            
+            <a href="pages/owa.html" class="platform-card owa">
+                <div class="platform-icon">📬</div>
+                <div class="platform-name">OWA</div>
+            </a>
+            
+            <a href="pages/mimecast.html" class="platform-card mimecast">
+                <div class="platform-icon">🛡️</div>
+                <div class="platform-name">Mimecast</div>
+            </a>
+            
+            <a href="pages/rackspace.html" class="platform-card rackspace">
+                <div class="platform-icon">🏢</div>
+                <div class="platform-name">Rackspace</div>
+            </a>
+            
+            <a href="pages/smartermail.html" class="platform-card smartermail">
+                <div class="platform-icon">💼</div>
+                <div class="platform-name">SmarterMail</div>
+            </a>
+            
+            <a href="pages/zimbra.html" class="platform-card zimbra">
+                <div class="platform-icon">📮</div>
+                <div class="platform-name">Zimbra</div>
+            </a>
+            
+            <a href="pages/roundcube.html" class="platform-card roundcube">
+                <div class="platform-icon">🌐</div>
+                <div class="platform-name">Roundcube</div>
+            </a>
+            
+            <a href="pages/cpanel.html" class="platform-card cpanel">
+                <div class="platform-icon">⚙️</div>
+                <div class="platform-name">cPanel</div>
+            </a>
+            
+            <a href="pages/horde.html" class="platform-card horde">
+                <div class="platform-icon">📬</div>
+                <div class="platform-name">Horde/IMP</div>
+            </a>
+        </div>
+        
+        <div class="info-box">
+            <h3>🔧 Detection Methods</h3>
+            <p><strong>DNS Analysis:</strong> MX record patterns, SPF, DMARC, MTA-STS records<br>
+            <strong>HTTP Fingerprinting:</strong> Server headers, X-headers, status codes<br>
+            <strong>Path Detection:</strong> Common webmail paths and redirects<br>
+            <strong>Cookie Analysis:</strong> Platform-specific session cookies<br>
+            <strong>HTML Content:</strong> Meta tags, keywords, form actions<br>
+            <strong>TLS Certificates:</strong> Certificate CN and organizational identifiers</p>
+        </div>
+        
+        <div class="footer">
+            <p>This is an educational demonstration of platform detection capabilities. For the actual DNS Checker API, visit the GitHub repository.</p>
+        </div>
+    </div>
+</body>
+</html>
