@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProtonMail - Detected</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #6c63ff 0%, #00b4db 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .container { background: white; padding: 60px 40px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 500px; text-align: center; }
+        .logo { font-size: 48px; margin-bottom: 20px; }
+        h1 { color: #6c63ff; margin-bottom: 15px; font-size: 28px; }
+        .provider-name { color: #6c63ff; font-weight: 600; font-size: 24px; margin-bottom: 30px; }
+        .confidence { font-size: 14px; color: #666; margin-bottom: 20px; }
+        .btn { background: #6c63ff; color: white; border: none; padding: 14px 30px; border-radius: 6px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 20px; transition: background 0.3s; }
+        .btn:hover { background: #00b4db; }
+        .info { background: #e8eaf6; padding: 20px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #6c63ff; text-align: left; }
+        .info h3 { color: #6c63ff; margin-bottom: 10px; }
+        .info p { color: #666; font-size: 14px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔐</div>
+        <h1>Email Provider Detected</h1>
+        <div class="provider-name">ProtonMail</div>
+        <div class="confidence"><strong>Confidence:</strong> <span id="conf">90</span>%</div>
+        <p id="domain" style="color: #666; margin-bottom: 20px;"></p>
+        
+        <div class="info">
+            <h3>Detection Details</h3>
+            <p><strong>Provider:</strong> ProtonMail (Encrypted Email)</p>
+            <p><strong>MX Servers:</strong> mail.protonmail.ch</p>
+            <p><strong>Webmail:</strong> mail.protonmail.com</p>
+            <p><strong>Features:</strong> End-to-end encryption, zero-knowledge architecture</p>
+        </div>
+        
+        <a href="https://mail.protonmail.com" target="_blank" class="btn">Access ProtonMail</a>
+    </div>
+    
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        document.getElementById('conf').textContent = Math.round(params.get('confidence') || 90);
+        document.getElementById('domain').textContent = 'Domain: ' + (params.get('domain') || 'example.com');
+    </script>
+</body>
+</html>

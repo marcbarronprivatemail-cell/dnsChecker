@@ -1,145 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rackspace - Email Platform Detected</title>
+    <title>Rackspace Email - Detected</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #ce3262 0%, #c41e3a 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            max-width: 600px;
-            width: 100%;
-            padding: 40px;
-            text-align: center;
-        }
-        .logo {
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-        h1 {
-            color: #ce3262;
-            margin-bottom: 10px;
-            font-size: 28px;
-        }
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        .detection-info {
-            background: #fff5f7;
-            border-left: 4px solid #ce3262;
-            padding: 20px;
-            margin-bottom: 30px;
-            text-align: left;
-            border-radius: 5px;
-        }
-        .detection-info h3 {
-            color: #ce3262;
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
-        .detection-info p {
-            color: #333;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-        .features {
-            text-align: left;
-            margin-bottom: 30px;
-        }
-        .features h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
-        .feature-list {
-            list-style: none;
-        }
-        .feature-list li {
-            padding: 8px 0;
-            color: #666;
-            font-size: 14px;
-            border-bottom: 1px solid #eee;
-        }
-        .feature-list li:before {
-            content: "✓ ";
-            color: #ce3262;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-        .cta-button {
-            display: inline-block;
-            background: #ce3262;
-            color: white;
-            padding: 12px 30px;
-            border-radius: 5px;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 600;
-            margin-top: 20px;
-            transition: background 0.3s;
-        }
-        .cta-button:hover {
-            background: #a92548;
-        }
-        .footer {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            font-size: 12px;
-            color: #999;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #f39200 0%, #c7290f 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .container { background: white; padding: 60px 40px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 500px; text-align: center; }
+        .logo { font-size: 48px; margin-bottom: 20px; }
+        h1 { color: #f39200; margin-bottom: 15px; font-size: 28px; }
+        .provider-name { color: #f39200; font-weight: 600; font-size: 24px; margin-bottom: 30px; }
+        .confidence { font-size: 14px; color: #666; margin-bottom: 20px; }
+        .btn { background: #f39200; color: white; border: none; padding: 14px 30px; border-radius: 6px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 20px; transition: background 0.3s; }
+        .btn:hover { background: #c7290f; }
+        .info { background: #fff8e1; padding: 20px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #f39200; text-align: left; }
+        .info h3 { color: #f39200; margin-bottom: 10px; }
+        .info p { color: #666; font-size: 14px; margin-bottom: 8px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">🏢</div>
-        <h1>Rackspace Email Detected</h1>
-        <p class="subtitle">Email Platform Detection - Educational Demo</p>
+        <div class="logo">☁️</div>
+        <h1>Email Provider Detected</h1>
+        <div class="provider-name">Rackspace Email</div>
+        <div class="confidence"><strong>Confidence:</strong> <span id="conf">80</span>%</div>
+        <p id="domain" style="color: #666; margin-bottom: 20px;"></p>
         
-        <div class="detection-info">
-            <h3>🔍 Detection Results</h3>
-            <p><strong>Platform:</strong> Rackspace Email</p>
-            <p><strong>Status:</strong> Successfully Identified</p>
-            <p><strong>MX Pattern Match:</strong> emailsrvr.com or rackspace.com</p>
-            <p><strong>Confidence Level:</strong> High</p>
+        <div class="info">
+            <h3>Detection Details</h3>
+            <p><strong>Provider:</strong> Rackspace Email Hosting</p>
+            <p><strong>MX Servers:</strong> emailsrvr.com</p>
+            <p><strong>Webmail:</strong> apps.rackspace.com or webmail.rackspace.com</p>
+            <p><strong>Control Panel:</strong> Rackspace Cloud Control</p>
         </div>
         
-        <div class="features">
-            <h3>📧 About Rackspace</h3>
-            <ul class="feature-list">
-                <li>Managed email hosting service</li>
-                <li>Webmail interface (Roundcube)</li>
-                <li>Enterprise-grade infrastructure</li>
-                <li>Calendar and contacts integration</li>
-                <li>Mobile synchronization</li>
-                <li>Spam and virus filtering</li>
-                <li>24/7 support available</li>
-            </ul>
-        </div>
-        
-        <a href="https://apps.rackspace.com" class="cta-button">Access Rackspace</a>
-        
-        <div class="footer">
-            <p>This is an educational demonstration of DNS Checker's platform detection capabilities.</p>
-        </div>
+        <a href="https://apps.rackspace.com" target="_blank" class="btn">Access Webmail</a>
     </div>
+    
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        document.getElementById('conf').textContent = Math.round(params.get('confidence') || 80);
+        document.getElementById('domain').textContent = 'Domain: ' + (params.get('domain') || 'example.com');
+    </script>
 </body>
 </html>
