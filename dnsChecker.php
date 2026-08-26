@@ -2,646 +2,703 @@
 
 /**
  * DNS Checker & Webmail Client Discovery API
+ * Advanced Heuristic-Based Detection Engine with MX Server Probing
  * 
- * A comprehensive standalone API for DNS record lookups and webmail platform detection
- * using advanced fingerprinting heuristics and layered detection methodology.
+ * Multi-stage detection to differentiate between:
+ * - Zimbra
+ * - cPanel/WHM Mail
+ * - Roundcube (on any server)
+ * - Microsoft 365 / OWA
+ * - Mimecast
+ * - Rackspace
+ * - SmarterMail
+ * - Horde
+ * - Gmail / Google
+ * - Yahoo / Prodigy
+ * - AOL Mail
+ * - FastMail
+ * - ProtonMail
+ * - Zoho Mail
+ * - AWS SES
+ * - SendGrid
+ * - MailChimp
+ * - Mailgun
+ * - Mandrill
+ * - And more...
  * 
  * @author DNS Checker API
- * @version 1.0.0
+ * @version 3.0.0
  */
+
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', dirname(__FILE__) . '/dnsChecker_errors.log');
 
 class DNSChecker
 {
     private $domain;
-    private $timeout = 5;
-    private $port_timeouts = 3;
-    private $detected_platform = null;
-    private $confidence_score = 0;
+    private $timeout = 3;
+    private $port_timeout = 2;
+    private $scores = [];
     private $evidence = [];
     private $dns_records = [];
-    private $http_headers = [];
-    private $html_content = '';
-    private $cookies = [];
-    private $certificate_info = [];
+    private $detected_provider = null;
+    private $confidence = 0;
+    private $mx_hosts = [];
 
-    // Webmail Platform Fingerprints
-    private $platforms = [
+    // Comprehensive Provider Detection Patterns
+    private $provider_signatures = [
         'microsoft_365' => [
-            'mx_patterns' => ['protection.outlook.com', 'outlook.com'],
-            'autodiscover_domains' => ['autodiscover.outlook.com'],
-            'keywords' => ['microsoft 365', 'outlook.office365.com'],
-            'priority' => 1,
-            'redirect_url' => 'https://outlook.office365.com'
+            'mx_patterns' => ['protection.outlook.com', 'outlook.com', 'microsoft.com'],
+            'html_indicators' => ['microsoft 365', 'outlook.office365', 'outlook.live.com', 'office365'],
+            'keywords' => ['office365', 'outlook.com', 'protection.outlook.com'],
+            'headers' => ['X-OWA-Version', 'X-FEServer'],
+            'min_score' => 20,
+            'weight' => 40
         ],
         'owa' => [
-            'paths' => ['/owa/', '/ecp/'],
+            'paths' => ['/owa/', '/ecp/', '/autodiscover.xml'],
+            'html_indicators' => ['outlook web app', 'owa.css', '/owa/auth', 'OWA-CANARY'],
+            'keywords' => ['microsoft exchange', 'outlook web access'],
             'cookies' => ['OWA-CANARY', 'X-OWA-CANARY'],
             'headers' => ['X-OWA-Version', 'X-FEServer', 'X-CalculatedBETarget'],
-            'keywords' => ['microsoft exchange', 'outlook web app'],
-            'priority' => 2,
-            'redirect_url' => '/owa/'
+            'min_score' => 20,
+            'weight' => 35
         ],
         'mimecast' => [
-            'mx_patterns' => ['mimecast.com', 'eu-smtp-inbound', 'us-smtp-inbound', 'au-smtp-inbound'],
-            'cookies' => ['mimecast_session'],
+            'mx_patterns' => ['mimecast.com', 'eu-smtp-inbound', 'us-smtp-inbound', 'au-smtp-inbound', 'jp-smtp-inbound'],
+            'html_indicators' => ['mimecast', 'mimecast-admin', 'gateway.mimecast.com'],
             'keywords' => ['mimecast'],
-            'priority' => 3,
-            'redirect_url' => 'https://login.mimecast.com'
+            'cookies' => ['mimecast_session', 'MIMECAST'],
+            'min_score' => 15,
+            'weight' => 35
         ],
         'rackspace' => [
-            'mx_patterns' => ['emailsrvr.com', 'rackspace.com'],
-            'domains' => ['apps.rackspace.com', 'webmail.rackspace.com'],
-            'keywords' => ['rackspace email'],
-            'priority' => 4,
-            'redirect_url' => 'https://apps.rackspace.com'
+            'mx_patterns' => ['emailsrvr.com', 'rackspace.com', 'rackspacemail'],
+            'html_indicators' => ['rackspace email', 'apps.rackspace.com', 'webmail.rackspace.com'],
+            'keywords' => ['rackspace', 'emailsrvr.com'],
+            'min_score' => 15,
+            'weight' => 30
         ],
         'smartermail' => [
-            'paths' => ['/login.aspx'],
-            'headers' => ['Server: SmarterMail'],
+            'paths' => ['/login.aspx', '/default.aspx', '/webmail'],
+            'html_indicators' => ['smartermail', 'smartertools', 'SmarterMail'],
             'keywords' => ['smartermail', 'smartertools'],
-            'priority' => 5,
-            'redirect_url' => '/login.aspx'
+            'headers' => ['Server: SmarterMail'],
+            'min_score' => 15,
+            'weight' => 25
         ],
         'zimbra' => [
+            'mx_patterns' => ['zimbra.com', 'synacor.com', 'carbonio'],
             'paths' => ['/modern/', '/zimbra/', '/service/soap', '/service/preauth'],
+            'html_indicators' => ['zimbra collaboration', 'carbonio', 'ZmSettings', 'ZmMsg', 'zm-web-client', '/modern/', 'zimbraVersion'],
+            'keywords' => ['zimbra', 'carbonio', 'synacor'],
             'cookies' => ['ZM_AUTH_TOKEN', 'ZM_TEST'],
-            'keywords' => ['zimbra collaboration', 'carbonio', 'ZmSettings', 'ZmMsg'],
-            'redirects' => ['/modern/', '/zimbra/'],
-            'priority' => 6,
-            'redirect_url' => '/modern/'
+            'min_score' => 20,
+            'weight' => 35
         ],
         'roundcube' => [
+            'paths' => ['/roundcube/', '/mail/', '/webmail/', '/rc/'],
+            'html_indicators' => ['roundcube webmail', 'rcmail', '_task=login', '_action=login', 'skins/elastic', 'skins/larry', '/program/js/app.js'],
+            'keywords' => ['roundcube', 'rcmail'],
             'cookies' => ['roundcube_sessid'],
-            'paths' => ['/program/js/'],
-            'keywords' => ['roundcube webmail', 'rcmail', '_task=login', '_action=login'],
-            'css_paths' => ['skins/elastic', 'skins/larry'],
-            'priority' => 7,
-            'redirect_url' => '/roundcube/'
+            'min_score' => 15,
+            'weight' => 30
         ],
         'cpanel' => [
-            'ports' => [2096, 2095],
-            'paths' => ['/webmail'],
-            'cookies' => ['cpsession'],
-            'headers' => ['cpaneld', 'cpsrvd'],
-            'keywords' => ['cpanel web'],
-            'priority' => 8,
-            'redirect_url' => 'https://{domain}:2096/webmail'
+            'ports' => [2095, 2096],
+            'paths' => ['/webmail', '/mail/', '/horde/', '/roundcube/'],
+            'html_indicators' => ['cpanel', 'whm', 'cpsession', '/webmail/'],
+            'keywords' => ['cpanel', 'whm', 'autodiscover.xml'],
+            'cookies' => ['cpsession', 'horde_imp_key'],
+            'min_score' => 12,
+            'weight' => 25
         ],
         'horde' => [
-            'paths' => ['/horde/', '/imp/'],
+            'paths' => ['/horde/', '/imp/', '/mail/'],
+            'html_indicators' => ['horde', 'imp webmail', 'horde_imp_key'],
             'keywords' => ['horde', 'imp webmail'],
-            'priority' => 9,
-            'redirect_url' => '/horde/'
+            'cookies' => ['horde_imp_key'],
+            'min_score' => 12,
+            'weight' => 20
+        ],
+        'gmail' => [
+            'mx_patterns' => ['gmail-smtp-in.l.google.com', 'aspmx.l.google.com', 'google.com', 'gmail.com'],
+            'html_indicators' => ['gmail', 'google mail', 'accounts.google.com'],
+            'keywords' => ['gmail', 'google.com'],
+            'min_score' => 20,
+            'weight' => 40
+        ],
+        'yahoo' => [
+            'mx_patterns' => ['mta5.am0.yahoodns.net', 'mta6.am0.yahoodns.net', 'yahoodns.net', 'yahoo.com'],
+            'html_indicators' => ['yahoo mail', 'mail.yahoo.com', 'prodigy'],
+            'keywords' => ['yahoo', 'yahoodns.net'],
+            'min_score' => 20,
+            'weight' => 40
+        ],
+        'protonmail' => [
+            'mx_patterns' => ['mail.protonmail.ch', 'mailsec.protonmail.ch', 'protonmail.ch'],
+            'html_indicators' => ['protonmail', 'protonemail', 'mail.protonmail.com'],
+            'keywords' => ['protonmail', 'protonemail'],
+            'min_score' => 15,
+            'weight' => 35
+        ],
+        'zoho' => [
+            'mx_patterns' => ['smtpin.zoho.com', 'smtpin2.zoho.com', 'zoho.com', 'zohomail'],
+            'html_indicators' => ['zoho mail', 'zohomail', 'zoho.com'],
+            'keywords' => ['zoho', 'zohomail.com'],
+            'min_score' => 15,
+            'weight' => 35
+        ],
+        'aol' => [
+            'mx_patterns' => ['mx.aol.com', 'aol.com'],
+            'html_indicators' => ['aol mail', 'mail.aol.com'],
+            'keywords' => ['aol', 'aol.com'],
+            'min_score' => 15,
+            'weight' => 35
+        ],
+        'fastmail' => [
+            'mx_patterns' => ['in1.messagingengine.com', 'in2.messagingengine.com', 'fastmail.fm'],
+            'html_indicators' => ['fastmail', 'messagingengine.com'],
+            'keywords' => ['fastmail', 'messagingengine.com'],
+            'min_score' => 15,
+            'weight' => 30
+        ],
+        'aws_ses' => [
+            'mx_patterns' => ['amazonses.com', 'bounce.amazonses.com', 'outbound-smtp.amazonses.com'],
+            'html_indicators' => ['amazon ses', 'amazonses.com'],
+            'keywords' => ['amazonses', 'aws'],
+            'min_score' => 15,
+            'weight' => 35
+        ],
+        'sendgrid' => [
+            'mx_patterns' => ['sendgrid.net', 'sg-ats.sendgrid.net'],
+            'html_indicators' => ['sendgrid', 'sendgrid.net'],
+            'keywords' => ['sendgrid'],
+            'min_score' => 15,
+            'weight' => 30
+        ],
+        'mailgun' => [
+            'mx_patterns' => ['mxa.mailgun.org', 'mxb.mailgun.org'],
+            'html_indicators' => ['mailgun', 'mailgun.org'],
+            'keywords' => ['mailgun'],
+            'min_score' => 15,
+            'weight' => 30
+        ],
+        'mailchimp' => [
+            'mx_patterns' => ['mailchimp.com'],
+            'html_indicators' => ['mailchimp', 'mandrill'],
+            'keywords' => ['mailchimp', 'mandrill'],
+            'min_score' => 15,
+            'weight' => 30
+        ],
+        'mandrill' => [
+            'mx_patterns' => ['mandrill.com', 'mx.mandrill.com'],
+            'html_indicators' => ['mandrill', 'mandrillapp.com'],
+            'keywords' => ['mandrill'],
+            'min_score' => 15,
+            'weight' => 30
         ]
-    ];
-
-    // Common webmail hostnames to probe
-    private $webmail_hostnames = [
-        'webmail',
-        'mail',
-        'autodiscover',
-        'cpanel',
-        'imap',
-        'smtp',
-        'pop3',
-        'secure',
-        'mail2'
-    ];
-
-    // Ports to probe
-    private $ports_to_probe = [80, 443, 2095, 2096];
-
-    // Redirect paths for fingerprinting
-    private $redirect_paths = [
-        '/roundcube/',
-        '/zimbra/',
-        '/owa/',
-        '/microsoft-server-activesync/',
-        '/appsuite/',
-        '/webmail/',
-        '/modern/',
-        '/imp/',
-        '/horde/'
     ];
 
     public function __construct($domain)
     {
         $this->domain = trim(strtolower($domain));
+        
+        // Extract domain from email if needed
+        if (strpos($this->domain, '@') !== false) {
+            $parts = explode('@', $this->domain);
+            $this->domain = end($parts);
+        }
+
         if (filter_var($this->domain, FILTER_VALIDATE_DOMAIN) === false) {
-            throw new Exception("Invalid domain: {$domain}");
+            throw new Exception("Invalid domain: {$this->domain}");
+        }
+
+        // Initialize scores
+        foreach ($this->provider_signatures as $provider => $config) {
+            $this->scores[$provider] = 0;
         }
     }
 
     /**
-     * Execute full DNS and webmail discovery scan
+     * Execute comprehensive detection scan
      */
     public function scan()
     {
         try {
-            // Stage 1: DNS Lookups
+            // Stage 1: MX Record Analysis (HIGH CONFIDENCE)
             $this->performDNSLookups();
 
-            // Stage 2: Autodiscover Detection
-            $this->detectAutodiscover();
+            // Stage 2: Probe MX Server(s) - CRITICAL FOR DIFFERENTIATION
+            $this->probeMXServers();
 
-            // Stage 3: Fingerprinting Engine
-            $this->runFingerprintingEngine();
+            // Stage 3: HTTP Redirect Detection
+            $this->detectHTTPRedirects();
 
-            // Stage 4: Platform Classification
-            $this->classifyPlatform();
+            // Stage 4: HTML Content Analysis
+            $this->analyzeHTMLContent();
+
+            // Stage 5: Cookie and Header Analysis
+            $this->analyzeCookiesAndHeaders();
+
+            // Stage 6: SMTP Banner Analysis
+            $this->probeSMTPBanners();
+
+            // Stage 7: Determine Best Match
+            $this->determineBestMatch();
 
             return $this->generateReport();
         } catch (Exception $e) {
+            error_log("DNS Checker Error: " . $e->getMessage());
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'domain' => $this->domain
             ];
         }
     }
 
     /**
-     * Stage 1: Perform comprehensive DNS lookups
+     * Stage 1: MX Record Analysis
      */
     private function performDNSLookups()
     {
-        // MX Records
-        $this->dns_records['mx'] = dns_get_mx($this->domain);
-        
-        // SPF Record (TXT)
-        $spf_records = dns_get_record($this->domain, DNS_TXT);
-        $this->dns_records['spf'] = array_filter($spf_records, function($record) {
-            return strpos($record['txt'], 'v=spf1') === 0;
-        });
-
-        // DMARC Record
-        $dmarc_records = dns_get_record("_dmarc.{$this->domain}", DNS_TXT);
-        $this->dns_records['dmarc'] = array_filter($dmarc_records, function($record) {
-            return strpos($record['txt'], 'v=DMARC1') === 0;
-        });
-
-        // MTA-STS Record
-        $mta_sts = dns_get_record("_mta-sts.{$this->domain}", DNS_TXT);
-        $this->dns_records['mta_sts'] = $mta_sts;
-
-        // Analyze MX providers
-        $this->analyzeMXProviders();
-    }
-
-    /**
-     * Analyze MX provider fingerprints
-     */
-    private function analyzeMXProviders()
-    {
-        if (empty($this->dns_records['mx'])) {
-            return;
-        }
-
-        foreach ($this->dns_records['mx'] as $mx_record) {
-            $mx_host = strtolower($mx_record['host']);
-            $this->addEvidence('MX Host', $mx_host, 'low');
-
-            // Check for known providers
-            foreach ($this->platforms as $platform => $config) {
-                if (isset($config['mx_patterns'])) {
-                    foreach ($config['mx_patterns'] as $pattern) {
-                        if (stripos($mx_host, $pattern) !== false) {
-                            $this->addEvidence("MX Provider Match: {$pattern}", $mx_host, 'high');
-                            $this->updateConfidence($platform, 25);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Stage 2: Detect Autodiscover endpoints
-     */
-    private function detectAutodiscover()
-    {
-        $autodiscover_domains = [
-            "autodiscover.{$this->domain}",
-            "autodiscover.outlook.com",
-            "{$this->domain}/.well-known/autoconfig.xml"
-        ];
-
-        foreach ($autodiscover_domains as $domain) {
-            $url = "https://{$domain}";
-            $response = $this->probeHTTPS($url);
-            
-            if ($response && $response['status'] < 400) {
-                $this->addEvidence("Autodiscover Available", $domain, 'medium');
-                
-                if (stripos($response['body'], 'autodiscover') !== false) {
-                    $this->addEvidence("Autodiscover XML", $domain, 'high');
-                }
-            }
-        }
-    }
-
-    /**
-     * Stage 3: Run comprehensive fingerprinting engine
-     */
-    private function runFingerprintingEngine()
-    {
-        // Probe common webmail hostnames
-        $this->probeWebmailHostnames();
-
-        // Probe standard ports
-        $this->probeStandardPorts();
-
-        // Analyze HTTP headers and redirects
-        $this->analyzeHTTPFingerprints();
-
-        // Parse HTML content
-        $this->analyzeHTMLFingerprints();
-
-        // Analyze cookies
-        $this->analyzeCookieFingerprints();
-
-        // Analyze TLS certificates
-        $this->analyzeTLSCertificates();
-    }
-
-    /**
-     * Probe common webmail hostnames
-     */
-    private function probeWebmailHostnames()
-    {
-        foreach ($this->webmail_hostnames as $hostname) {
-            $host = "{$hostname}.{$this->domain}";
-            
-            foreach ($this->ports_to_probe as $port) {
-                $response = $this->probeHost($host, $port);
-                
-                if ($response) {
-                    $this->addEvidence("Host Discovered", "{$host}:{$port}", 'medium');
-                }
-            }
-        }
-    }
-
-    /**
-     * Probe standard HTTP/HTTPS ports with fingerprinting
-     */
-    private function probeStandardPorts()
-    {
-        $primary_host = $this->domain;
-        
-        foreach ($this->ports_to_probe as $port) {
-            // Try HTTPS first
-            $url = "https://{$primary_host}:{$port}";
-            $response = $this->probeHTTPS($url);
-            
-            if ($response) {
-                $this->analyzeResponse($response, $port);
-            } else {
-                // Try HTTP
-                $url = "http://{$primary_host}:{$port}";
-                $response = $this->probeHTTP($url);
-                
-                if ($response) {
-                    $this->analyzeResponse($response, $port);
-                }
-            }
-        }
-    }
-
-    /**
-     * Analyze HTTP response for fingerprints
-     */
-    private function analyzeResponse($response, $port)
-    {
-        $headers = $response['headers'] ?? [];
-        $body = $response['body'] ?? '';
-
-        // Server header analysis
-        if (isset($headers['server'])) {
-            $server = strtolower($headers['server']);
-            $this->analyzeServerHeader($server, $port);
-        }
-
-        // Custom headers analysis
-        $x_headers = array_filter($headers, function($key) {
-            return strpos($key, 'x-') === 0;
-        }, ARRAY_FILTER_USE_KEY);
-
-        foreach ($x_headers as $header => $value) {
-            $this->addEvidence("HTTP Header", "{$header}: {$value}", 'medium');
-            $this->matchHeaderToplatform($header, $value);
-        }
-
-        // Parse HTML for fingerprints
-        if (!empty($body)) {
-            $this->parseHTMLFingerprints($body);
-        }
-    }
-
-    /**
-     * Analyze server header for platform identification
-     */
-    private function analyzeServerHeader($server, $port)
-    {
-        $fingerprints = [
-            'microsoft-iis' => ['microsoft_365', 'owa'],
-            'exchange' => ['owa', 'microsoft_365'],
-            'smartermail' => ['smartermail'],
-            'zimbra' => ['zimbra'],
-            'cpanel' => ['cpanel'],
-            'nginx' => [],
-            'apache' => []
-        ];
-
-        foreach ($fingerprints as $keyword => $platforms) {
-            if (strpos($server, $keyword) !== false) {
-                $this->addEvidence("Server Header", $keyword, 'high');
-                
-                foreach ($platforms as $platform) {
-                    $this->updateConfidence($platform, 20);
-                }
-            }
-        }
-    }
-
-    /**
-     * Match HTTP headers to platforms
-     */
-    private function matchHeaderToplatform($header, $value)
-    {
-        $header_lower = strtolower($header);
-        $value_lower = strtolower($value);
-
-        foreach ($this->platforms as $platform => $config) {
-            if (isset($config['headers'])) {
-                foreach ($config['headers'] as $fingerprint) {
-                    if (strpos($header_lower . ': ' . $value_lower, strtolower($fingerprint)) !== false) {
-                        $this->addEvidence("Header Fingerprint", $fingerprint, 'high');
-                        $this->updateConfidence($platform, 30);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Analyze HTTP fingerprints
-     */
-    private function analyzeHTTPFingerprints()
-    {
-        $url = "https://{$this->domain}";
-        
-        foreach ($this->redirect_paths as $path) {
-            $response = $this->probeHTTPS($url . $path);
-            
-            if ($response && ($response['status'] === 200 || $response['status'] === 302)) {
-                $this->addEvidence("Redirect Path Detected", $path, 'medium');
-                $this->matchPathToplatform($path);
-            }
-        }
-    }
-
-    /**
-     * Match redirect paths to platforms
-     */
-    private function matchPathToplatform($path)
-    {
-        foreach ($this->platforms as $platform => $config) {
-            if (isset($config['paths'])) {
-                foreach ($config['paths'] as $platform_path) {
-                    if (stripos($path, $platform_path) !== false) {
-                        $this->addEvidence("Path Match", $platform_path, 'high');
-                        $this->updateConfidence($platform, 25);
-                    }
-                }
-            }
-            
-            if (isset($config['redirects'])) {
-                foreach ($config['redirects'] as $redirect) {
-                    if (stripos($path, $redirect) !== false) {
-                        $this->addEvidence("Redirect Match", $redirect, 'high');
-                        $this->updateConfidence($platform, 25);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Analyze HTML fingerprints
-     */
-    private function analyzeHTMLFingerprints()
-    {
-        $url = "https://{$this->domain}";
-        $response = $this->probeHTTPS($url);
-        
-        if ($response && isset($response['body'])) {
-            $this->parseHTMLFingerprints($response['body']);
-        }
-    }
-
-    /**
-     * Parse HTML content for platform fingerprints
-     */
-    private function parseHTMLFingerprints($html)
-    {
-        // Extract meta tags
-        preg_match_all('/<meta\s+name="([^"]+)"\s+content="([^"]+)"/i', $html, $meta_matches);
-        
-        for ($i = 0; $i < count($meta_matches[0]); $i++) {
-            $meta_name = $meta_matches[1][$i];
-            $meta_content = $meta_matches[2][$i];
-            
-            foreach ($this->platforms as $platform => $config) {
-                if (isset($config['keywords'])) {
-                    foreach ($config['keywords'] as $keyword) {
-                        if (stripos($meta_content, $keyword) !== false) {
-                            $this->addEvidence("Meta Tag", $keyword, 'medium');
-                            $this->updateConfidence($platform, 15);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Extract form actions
-        preg_match_all('/<form[^>]+action="([^"]+)"/i', $html, $form_matches);
-        foreach ($form_matches[1] as $action) {
-            $this->matchPathToplatform($action);
-        }
-
-        // Extract JavaScript files
-        preg_match_all('/<script[^>]+src="([^"]+)"/i', $html, $script_matches);
-        foreach ($script_matches[1] as $script) {
-            $this->matchPathToplatform($script);
-            $this->matchKeywordsInContent($script);
-        }
-
-        // Check for CSS paths
-        preg_match_all('/<link[^>]+href="([^"]+\.css)"/i', $html, $css_matches);
-        foreach ($css_matches[1] as $css_path) {
-            $this->matchPathToplatform($css_path);
-        }
-
-        // Extract keywords and banners
-        foreach ($this->platforms as $platform => $config) {
-            if (isset($config['keywords'])) {
-                foreach ($config['keywords'] as $keyword) {
-                    if (stripos($html, $keyword) !== false) {
-                        $this->addEvidence("HTML Keyword", $keyword, 'medium');
-                        $this->updateConfidence($platform, 10);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Match keywords in content
-     */
-    private function matchKeywordsInContent($content)
-    {
-        foreach ($this->platforms as $platform => $config) {
-            if (isset($config['keywords'])) {
-                foreach ($config['keywords'] as $keyword) {
-                    if (stripos($content, $keyword) !== false) {
-                        $this->addEvidence("Content Keyword", $keyword, 'low');
-                        $this->updateConfidence($platform, 5);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Analyze cookie fingerprints
-     */
-    private function analyzeCookieFingerprints()
-    {
-        $url = "https://{$this->domain}";
-        $response = $this->probeHTTPS($url);
-        
-        if ($response && isset($response['headers']['set-cookie'])) {
-            $cookies = $response['headers']['set-cookie'];
-            
-            if (!is_array($cookies)) {
-                $cookies = [$cookies];
-            }
-            
-            foreach ($cookies as $cookie) {
-                preg_match('/^([^=;]+)/', $cookie, $matches);
-                if (isset($matches[1])) {
-                    $cookie_name = $matches[1];
-                    $this->matchCookieToplatform($cookie_name);
-                }
-            }
-        }
-    }
-
-    /**
-     * Match cookies to platforms
-     */
-    private function matchCookieToplatform($cookie_name)
-    {
-        foreach ($this->platforms as $platform => $config) {
-            if (isset($config['cookies'])) {
-                foreach ($config['cookies'] as $platform_cookie) {
-                    if (stripos($cookie_name, $platform_cookie) !== false) {
-                        $this->addEvidence("Cookie Match", $platform_cookie, 'high');
-                        $this->updateConfidence($platform, 35);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Analyze TLS certificates
-     */
-    private function analyzeTLSCertificates()
-    {
-        $context = stream_context_create([
-            "ssl" => [
-                "capture_peer_cert" => true,
-                "verify_peer" => false,
-                "verify_peer_name" => false
-            ]
-        ]);
-
-        $stream = @stream_socket_client("ssl://{$this->domain}:443", $errno, $errstr, $this->timeout, STREAM_CLIENT_CONNECT, $context);
-        
-        if ($stream) {
-            $cert = stream_context_get_params($stream);
-            
-            if (isset($cert["options"]["ssl"]["peer_certificate"])) {
-                $cert_data = openssl_x509_parse($cert["options"]["ssl"]["peer_certificate"]);
-                
-                if (isset($cert_data['subject']['CN'])) {
-                    $cn = $cert_data['subject']['CN'];
-                    $this->addEvidence("Certificate CN", $cn, 'medium');
-                    
-                    // Match to platforms
-                    foreach ($this->platforms as $platform => $config) {
-                        if (isset($config['keywords'])) {
-                            foreach ($config['keywords'] as $keyword) {
-                                if (stripos($cn, $keyword) !== false) {
-                                    $this->addEvidence("Cert Keyword", $keyword, 'high');
-                                    $this->updateConfidence($platform, 20);
+        try {
+            $mx_records = [];
+            if (@dns_get_mx($this->domain, $mx_records)) {
+                if (!empty($mx_records) && is_array($mx_records)) {
+                    foreach ($mx_records as $record) {
+                        $host = strtolower($record['host']);
+                        $this->mx_hosts[] = $host;
+                        $this->addEvidence("MX Record", $host, 'high');
+                        
+                        // Score based on known MX providers
+                        foreach ($this->provider_signatures as $provider => $config) {
+                            if (!isset($config['mx_patterns'])) {
+                                continue;
+                            }
+                            foreach ($config['mx_patterns'] as $pattern) {
+                                if (stripos($host, $pattern) !== false) {
+                                    $weight = $config['weight'] ?? 30;
+                                    $this->scores[$provider] += $weight;
+                                    $this->addEvidence("MX Match", "$provider: $pattern", 'high');
                                 }
                             }
                         }
                     }
+                    $this->dns_records['mx'] = $mx_records;
                 }
+            } else {
+                $this->addEvidence("DNS", "No MX records found", 'low');
             }
-            
-            fclose($stream);
+        } catch (Exception $e) {
+            error_log("DNS Lookup Error: " . $e->getMessage());
         }
     }
 
     /**
-     * Probe HTTPS endpoint
+     * Stage 2: Probe MX Server - DIFFERENTIATE BETWEEN LOCAL PROVIDERS
      */
-    private function probeHTTPS($url)
+    private function probeMXServers()
     {
-        return $this->probeURL($url, true);
+        if (empty($this->mx_hosts)) {
+            return;
+        }
+
+        $mx_host = $this->mx_hosts[0];
+        $this->addEvidence("MX Host Probing", "Probing $mx_host", 'medium');
+
+        // Probe various ports and paths on the MX server
+        $this->probeMailServerPorts($mx_host);
     }
 
     /**
-     * Probe HTTP endpoint
+     * Probe MX server on various ports for platform identification
      */
-    private function probeHTTP($url)
+    private function probeMailServerPorts($mx_host)
     {
-        return $this->probeURL($url, false);
+        // SMTP Banner Detection (port 25, 587, 465)
+        $smtp_ports = [25, 587, 465];
+        foreach ($smtp_ports as $port) {
+            $banner = $this->getSMTPBanner($mx_host, $port);
+            if ($banner) {
+                $this->analyzeMailServerBanner($banner);
+            }
+        }
+
+        // HTTP/HTTPS Webmail Interfaces
+        $webmail_ports = [80, 443, 8080, 8443, 2095, 2096];
+        foreach ($webmail_ports as $port) {
+            $protocol = in_array($port, [443, 2096, 8443]) ? 'https' : 'http';
+            $url = "$protocol://$mx_host:$port";
+            
+            $this->probeWebmailInterface($url);
+        }
+
+        // Common webmail paths on the domain itself
+        foreach ($this->provider_signatures as $provider => $config) {
+            if (!isset($config['paths'])) {
+                continue;
+            }
+
+            foreach ($config['paths'] as $path) {
+                $url = "http://{$this->domain}$path";
+                $response = $this->probeURL($url);
+                
+                if ($response && $response['status'] === 200) {
+                    $this->analyzeWebmailResponse($response, $provider);
+                }
+            }
+        }
     }
 
     /**
-     * Generic URL probing method
+     * Get SMTP banner for server identification
      */
-    private function probeURL($url, $verify_ssl = false)
+    private function getSMTPBanner($host, $port)
     {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_TIMEOUT => $this->timeout,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HEADER => true,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_SSL_VERIFYPEER => $verify_ssl,
-            CURLOPT_SSL_VERIFYHOST => $verify_ssl ? 2 : 0,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        ]);
-
-        $response = curl_exec($ch);
-        $info = curl_getinfo($ch);
-        curl_close($ch);
-
-        if ($response === false) {
+        $timeout = 2;
+        $sock = @fsockopen($host, $port, $errno, $errstr, $timeout);
+        
+        if (!$sock) {
             return null;
         }
 
-        // Parse headers
-        list($headers_text, $body) = explode("\r\n\r\n", $response, 2);
-        $headers = [];
+        stream_set_timeout($sock, $timeout);
+        $banner = @fgets($sock, 1024);
+        @fclose($sock);
+
+        return $banner ? trim($banner) : null;
+    }
+
+    /**
+     * Analyze SMTP banner for platform indicators
+     */
+    private function analyzeMailServerBanner($banner)
+    {
+        $banner_lower = strtolower($banner);
+
+        // Zimbra SMTP banner
+        if (stripos($banner, 'zimbra') !== false || stripos($banner, 'synacor') !== false) {
+            $this->scores['zimbra'] += 25;
+            $this->addEvidence("SMTP Banner", "Zimbra detected: $banner", 'high');
+        }
+
+        // cPanel/Exim (common on cPanel)
+        if (stripos($banner, 'exim') !== false) {
+            $this->scores['cpanel'] += 15;
+            $this->addEvidence("SMTP Banner", "Exim (cPanel): $banner", 'high');
+        }
+
+        // Postfix (common on Roundcube/standalone)
+        if (stripos($banner, 'postfix') !== false) {
+            $this->scores['roundcube'] += 10;
+            $this->addEvidence("SMTP Banner", "Postfix: $banner", 'medium');
+        }
+
+        // Sendmail
+        if (stripos($banner, 'sendmail') !== false) {
+            $this->scores['roundcube'] += 8;
+            $this->addEvidence("SMTP Banner", "Sendmail: $banner", 'medium');
+        }
+
+        // Microsoft Exchange
+        if (stripos($banner, 'microsoft') !== false || stripos($banner, 'exchange') !== false) {
+            $this->scores['owa'] += 20;
+            $this->scores['microsoft_365'] += 15;
+            $this->addEvidence("SMTP Banner", "Microsoft Exchange: $banner", 'high');
+        }
+
+        // SmarterMail
+        if (stripos($banner, 'smartermail') !== false) {
+            $this->scores['smartermail'] += 25;
+            $this->addEvidence("SMTP Banner", "SmarterMail: $banner", 'high');
+        }
+    }
+
+    /**
+     * Probe webmail interface
+     */
+    private function probeWebmailInterface($url)
+    {
+        $response = $this->probeURL($url);
+        if (!$response || $response['status'] !== 200) {
+            return;
+        }
+
+        $body_lower = strtolower($response['body'] ?? '');
+        $headers = $response['headers'] ?? [];
+
+        // Check server header
+        if (isset($headers['server'])) {
+            $server_lower = strtolower($headers['server']);
+            if (stripos($server_lower, 'zimbra') !== false) {
+                $this->scores['zimbra'] += 20;
+                $this->addEvidence("Webmail Server", "Zimbra webmail found at $url", 'high');
+            }
+            if (stripos($server_lower, 'roundcube') !== false) {
+                $this->scores['roundcube'] += 25;
+                $this->addEvidence("Webmail Server", "Roundcube webmail found at $url", 'high');
+            }
+            if (stripos($server_lower, 'microsoft') !== false || stripos($server_lower, 'exchange') !== false) {
+                $this->scores['owa'] += 20;
+                $this->addEvidence("Webmail Server", "OWA detected at $url", 'high');
+            }
+        }
+
+        // Check body content
+        if (stripos($body_lower, 'zimbraversion') !== false) {
+            $this->scores['zimbra'] += 30;
+            $this->addEvidence("Webmail Content", "Zimbra version detected at $url", 'high');
+        }
+        if (stripos($body_lower, 'zmsettings') !== false) {
+            $this->scores['zimbra'] += 25;
+            $this->addEvidence("Webmail Content", "Zimbra JS config found at $url", 'high');
+        }
+        if (stripos($body_lower, 'roundcube') !== false && stripos($body_lower, '_task=') !== false) {
+            $this->scores['roundcube'] += 25;
+            $this->addEvidence("Webmail Content", "Roundcube interface found at $url", 'high');
+        }
+        if (stripos($body_lower, 'cpanel') !== false) {
+            $this->scores['cpanel'] += 15;
+            $this->addEvidence("Webmail Content", "cPanel interface found at $url", 'medium');
+        }
+        if (stripos($body_lower, 'owa') !== false || stripos($body_lower, 'outlook web') !== false) {
+            $this->scores['owa'] += 25;
+            $this->addEvidence("Webmail Content", "OWA interface found at $url", 'high');
+        }
+    }
+
+    /**
+     * Analyze webmail response
+     */
+    private function analyzeWebmailResponse($response, $provider)
+    {
+        $body_lower = strtolower($response['body'] ?? '');
+        $headers = $response['headers'] ?? [];
+
+        if (!isset($this->provider_signatures[$provider]['html_indicators'])) {
+            return;
+        }
+
+        // Check for provider-specific indicators
+        if (isset($this->provider_signatures[$provider]['html_indicators'])) {
+            foreach ($this->provider_signatures[$provider]['html_indicators'] as $indicator) {
+                if (stripos($body_lower, strtolower($indicator)) !== false) {
+                    $this->scores[$provider] += 15;
+                    $this->addEvidence("Webmail Match", "$provider: $indicator", 'high');
+                }
+            }
+        }
+    }
+
+    /**
+     * Stage 3: HTTP Redirect Detection
+     */
+    private function detectHTTPRedirects()
+    {
+        $base_url = "http://{$this->domain}";
+
+        foreach ($this->provider_signatures as $provider => $config) {
+            if (!isset($config['paths'])) {
+                continue;
+            }
+
+            foreach ($config['paths'] as $path) {
+                $url = $base_url . $path;
+                $response = $this->probeURL($url);
+
+                if (!$response) {
+                    continue;
+                }
+
+                if (in_array($response['status'], [301, 302, 303, 307])) {
+                    $this->scores[$provider] += 15;
+                    $this->addEvidence("HTTP Redirect", "$provider: $path", 'high');
+                }
+
+                if ($response['status'] === 200) {
+                    $this->scores[$provider] += 12;
+                    $this->addEvidence("HTTP 200", "$provider: $path", 'medium');
+                }
+            }
+        }
+    }
+
+    /**
+     * Stage 4: HTML Content Analysis
+     */
+    private function analyzeHTMLContent()
+    {
+        $html = $this->fetchHTML("http://{$this->domain}");
+
+        if (!$html) {
+            return;
+        }
+
+        $html_lower = strtolower($html);
+
+        foreach ($this->provider_signatures as $provider => $config) {
+            if (!isset($config['html_indicators'])) {
+                continue;
+            }
+
+            foreach ($config['html_indicators'] as $indicator) {
+                if (stripos($html_lower, strtolower($indicator)) !== false) {
+                    $this->scores[$provider] += 10;
+                    $this->addEvidence("HTML Indicator", "$provider: $indicator", 'medium');
+                }
+            }
+        }
+
+        $this->parseAdvancedPatterns($html);
+    }
+
+    /**
+     * Parse advanced patterns
+     */
+    private function parseAdvancedPatterns($html)
+    {
+        // Roundcube form detection
+        if (preg_match('/name=["\']_task["\']\s+value=["\']([^"\']+)["\']/', $html, $m)) {
+            if (isset($m[1]) && in_array($m[1], ['login', 'mail'])) {
+                $this->scores['roundcube'] += 10;
+                $this->addEvidence("Roundcube Form", "_task={$m[1]}", 'high');
+            }
+        }
+
+        // Zimbra JS variables
+        if (preg_match('/ZmSettings|ZmMsg|ZmAction|zimbraVersion/', $html)) {
+            $this->scores['zimbra'] += 15;
+            $this->addEvidence("Zimbra JS", "Zm* variables", 'high');
+        }
+
+        // cPanel port detection
+        if (preg_match('/https?:\/\/[^\/]*:20(95|96)/', $html)) {
+            $this->scores['cpanel'] += 15;
+            $this->addEvidence("cPanel Ports", "2095/2096", 'high');
+        }
+
+        // OWA detection
+        if (preg_match('/outlook.*web.*app|owa.*canary|x-owa-version/i', $html)) {
+            $this->scores['owa'] += 20;
+            $this->addEvidence("OWA Pattern", "Outlook Web Access detected", 'high');
+        }
+    }
+
+    /**
+     * Stage 5: Cookie and Header Analysis
+     */
+    private function analyzeCookiesAndHeaders()
+    {
+        $response = $this->probeURL("http://{$this->domain}");
+
+        if (!$response) {
+            return;
+        }
+
+        $headers = $response['headers'] ?? [];
+
+        foreach ($headers as $header_name => $header_value) {
+            $header_name_lower = strtolower($header_name);
+
+            if (strpos($header_name_lower, 'set-cookie') !== false) {
+                if (stripos($header_value, 'roundcube_sessid') !== false) {
+                    $this->scores['roundcube'] += 20;
+                    $this->addEvidence("Cookie", "roundcube_sessid", 'high');
+                }
+                if (stripos($header_value, 'zm_auth_token') !== false) {
+                    $this->scores['zimbra'] += 20;
+                    $this->addEvidence("Cookie", "Zimbra session", 'high');
+                }
+                if (stripos($header_value, 'cpsession') !== false) {
+                    $this->scores['cpanel'] += 20;
+                    $this->addEvidence("Cookie", "cpsession", 'high');
+                }
+                if (stripos($header_value, 'owa-canary') !== false) {
+                    $this->scores['owa'] += 20;
+                    $this->addEvidence("Cookie", "OWA-CANARY", 'high');
+                }
+            }
+
+            if ($header_name_lower === 'server') {
+                if (stripos($header_value, 'zimbra') !== false) {
+                    $this->scores['zimbra'] += 15;
+                    $this->addEvidence("Server", "Zimbra", 'high');
+                }
+                if (stripos($header_value, 'exim') !== false || stripos($header_value, 'cpanel') !== false) {
+                    $this->scores['cpanel'] += 15;
+                    $this->addEvidence("Server", "cPanel/Exim", 'high');
+                }
+                if (stripos($header_value, 'microsoft') !== false || stripos($header_value, 'exchange') !== false) {
+                    $this->scores['owa'] += 15;
+                    $this->scores['microsoft_365'] += 10;
+                    $this->addEvidence("Server", "Microsoft Exchange", 'high');
+                }
+            }
+        }
+    }
+
+    /**
+     * Stage 6: SMTP Banner Analysis
+     */
+    private function probeSMTPBanners()
+    {
+        if (empty($this->mx_hosts)) {
+            return;
+        }
+
+        $smtp_ports = [25, 587, 465];
+        foreach ($smtp_ports as $port) {
+            $banner = $this->getSMTPBanner($this->mx_hosts[0], $port);
+            if ($banner) {
+                $this->analyzeMailServerBanner($banner);
+                break; // Only need one successful connection
+            }
+        }
+    }
+
+    /**
+     * Fetch HTML content from URL
+     */
+    private function fetchHTML($url)
+    {
+        $response = $this->probeURL($url);
+        return $response ? ($response['body'] ?? '') : null;
+    }
+
+    /**
+     * Probe URL with timeout and error handling
+     */
+    private function probeURL($url)
+    {
+        $ch = curl_init();
         
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0');
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+
+        $response = @curl_exec($ch);
+        $info = curl_getinfo($ch);
+        curl_close($ch);
+
+        if ($response === false || empty($response)) {
+            return null;
+        }
+
+        $parts = explode("\r\n\r\n", $response, 2);
+        $headers_text = $parts[0] ?? '';
+        $body = $parts[1] ?? '';
+        $headers = [];
+
         foreach (explode("\r\n", $headers_text) as $line) {
             if (strpos($line, ':') !== false) {
                 list($name, $value) = explode(':', $line, 2);
@@ -650,83 +707,45 @@ class DNSChecker
         }
 
         return [
-            'status' => $info['http_code'],
+            'status' => $info['http_code'] ?? 0,
             'headers' => $headers,
-            'body' => $body,
-            'url' => $info['url']
+            'body' => $body
         ];
     }
 
     /**
-     * Probe host on specific port
+     * Determine best match based on scores
      */
-    private function probeHost($host, $port)
+    private function determineBestMatch()
     {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => "https://{$host}:{$port}",
-            CURLOPT_TIMEOUT => $this->port_timeouts,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0,
-            CURLOPT_NOBODY => true
-        ]);
+        arsort($this->scores);
 
-        $response = curl_exec($ch);
-        $info = curl_getinfo($ch);
-        curl_close($ch);
+        foreach ($this->scores as $provider => $score) {
+            $min_score = $this->provider_signatures[$provider]['min_score'] ?? 10;
 
-        return $info['http_code'] > 0 && $info['http_code'] < 500;
-    }
-
-    /**
-     * Classify platform based on accumulated evidence
-     */
-    private function classifyPlatform()
-    {
-        $platform_scores = [];
-
-        // Sort platforms by priority for tie-breaking
-        foreach ($this->platforms as $platform => $config) {
-            $platform_scores[$platform] = 0;
-        }
-
-        // This would be populated by updateConfidence calls
-        // For demonstration, we'll analyze based on DNS records
-        if (!empty($this->dns_records['mx'])) {
-            foreach ($this->dns_records['mx'] as $mx) {
-                $mx_host = strtolower($mx['host']);
-                
-                if (stripos($mx_host, 'protection.outlook.com') !== false) {
-                    $platform_scores['microsoft_365'] += 40;
-                } elseif (stripos($mx_host, 'mimecast') !== false) {
-                    $platform_scores['mimecast'] += 40;
-                } elseif (stripos($mx_host, 'emailsrvr.com') !== false) {
-                    $platform_scores['rackspace'] += 40;
-                } elseif (stripos($mx_host, 'zimbra') !== false) {
-                    $platform_scores['zimbra'] += 40;
-                }
+            if ($score >= $min_score) {
+                $this->detected_provider = $provider;
+                $this->confidence = min(100, ($score / 50) * 100);
+                $this->addEvidence("Detection", "$provider (score: $score)", 'high');
+                return;
             }
         }
 
-        // Find platform with highest score
-        if (!empty($platform_scores)) {
-            $this->detected_platform = array_key_first($platform_scores);
-            $this->confidence_score = min(100, array_sum($platform_scores) / count($platform_scores));
+        // Fallback: Use highest score even if below threshold
+        $this->detected_provider = array_key_first($this->scores);
+        $top_score = reset($this->scores);
+        $this->confidence = max(0, min(100, ($top_score / 50) * 100));
+        if ($top_score > 0) {
+            $this->addEvidence("Detection", "Fallback: {$this->detected_provider} (score: $top_score)", 'medium');
+        } else {
+            $this->detected_provider = 'unknown';
+            $this->confidence = 0;
+            $this->addEvidence("Detection", "No provider detected - setting to unknown", 'low');
         }
     }
 
     /**
-     * Update confidence score for a platform
-     */
-    private function updateConfidence($platform, $points)
-    {
-        // This would be stored in a separate confidence tracking system
-        // For now, it accumulates evidence
-    }
-
-    /**
-     * Add evidence to findings
+     * Add evidence for audit trail
      */
     private function addEvidence($type, $value, $severity = 'medium')
     {
@@ -738,62 +757,23 @@ class DNSChecker
     }
 
     /**
-     * Generate redirect URL based on detected platform
-     */
-    private function generateRedirectUrl()
-    {
-        if (!$this->detected_platform || !isset($this->platforms[$this->detected_platform])) {
-            return null;
-        }
-
-        $platform_config = $this->platforms[$this->detected_platform];
-        if (!isset($platform_config['redirect_url'])) {
-            return null;
-        }
-
-        $redirect_url = $platform_config['redirect_url'];
-        
-        // Replace domain placeholder if present
-        if (strpos($redirect_url, '{domain}') !== false) {
-            $redirect_url = str_replace('{domain}', $this->domain, $redirect_url);
-        }
-
-        // Make relative URLs absolute
-        if (strpos($redirect_url, 'http') !== 0 && strpos($redirect_url, '/') === 0) {
-            $redirect_url = 'https://' . $this->domain . $redirect_url;
-        }
-
-        return $redirect_url;
-    }
-
-    /**
-     * Generate comprehensive report
+     * Generate final report
      */
     private function generateReport()
     {
-        $high_confidence_evidence = array_filter($this->evidence, function($e) {
+        $high_evidence = array_filter($this->evidence, function($e) {
             return $e['severity'] === 'high';
         });
-
-        $evidence_list = array_map(function($e) {
-            return $e['value'];
-        }, array_slice($high_confidence_evidence, 0, 5));
 
         return [
             'success' => true,
             'domain' => $this->domain,
-            'dns_records' => [
-                'mx' => array_map(function($mx) { return $mx['host']; }, $this->dns_records['mx'] ?? []),
-                'spf' => count($this->dns_records['spf'] ?? []) > 0,
-                'dmarc' => count($this->dns_records['dmarc'] ?? []) > 0,
-                'mta_sts' => count($this->dns_records['mta_sts'] ?? []) > 0
-            ],
-            'provider' => $this->detected_platform ?? 'unknown',
-            'confidence' => round($this->confidence_score, 2),
-            'redirect_url' => $this->generateRedirectUrl(),
-            'evidence' => $evidence_list,
-            'evidence_count' => count($this->evidence),
-            'full_evidence' => array_slice($this->evidence, 0, 20)
+            'provider' => $this->detected_provider ?? 'unknown',
+            'confidence' => round($this->confidence, 2),
+            'scores' => $this->scores,
+            'mx_records' => !empty($this->dns_records['mx']) ? array_map(function($r) { return $r['host']; }, $this->dns_records['mx']) : [],
+            'evidence' => array_map(function($e) { return $e['value']; }, array_slice($high_evidence, 0, 15)),
+            'evidence_count' => count($this->evidence)
         ];
     }
 }
@@ -805,55 +785,47 @@ class DNSCheckerAPI
 {
     public static function handleRequest()
     {
-        // Set CORS headers
         header('Access-Control-Allow-Origin: *');
         header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type');
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
 
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
             http_response_code(200);
             exit();
         }
 
-        // Get domain from GET or POST
-        $domain = $_GET['domain'] ?? $_POST['domain'] ?? null;
+        $domain = trim($_GET['domain'] ?? $_POST['domain'] ?? '');
 
-        if (!$domain) {
+        if (empty($domain)) {
             http_response_code(400);
-            echo json_encode([
-                'success' => false,
-                'error' => 'Domain parameter required'
-            ]);
+            echo json_encode(['success' => false, 'error' => 'Domain required']);
             exit();
         }
 
         try {
             $checker = new DNSChecker($domain);
             $result = $checker->scan();
-            
             http_response_code(200);
-            echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            echo json_encode($result);
         } catch (Exception $e) {
+            error_log("API Error: " . $e->getMessage());
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'domain' => $domain
             ]);
         }
     }
 }
 
-// Handle API requests
 if (php_sapi_name() !== 'cli') {
     DNSCheckerAPI::handleRequest();
 }
 
-// CLI usage
 if (php_sapi_name() === 'cli' && isset($argv[1])) {
-    $domain = $argv[1];
-    $checker = new DNSChecker($domain);
-    $result = $checker->scan();
-    echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    $checker = new DNSChecker($argv[1]);
+    echo json_encode($checker->scan());
 }
 ?>
